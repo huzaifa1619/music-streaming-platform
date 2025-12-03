@@ -1,0 +1,84 @@
+# ----------------------
+# Java
+# ----------------------
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+
+# Maven / Gradle cache
+.mvn/
+target/
+build/
+
+# IntelliJ / Eclipse / NetBeans
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.settings/
+.classpath
+.nb-gradle/
+
+# ----------------------
+# C++ (backend)
+# ----------------------
+*.o
+*.obj
+*.exe
+*.out
+*.dll
+*.lib
+*.so
+*.a
+*.pch
+
+# Build folders
+/build/
+/bin/
+/dist/
+
+# Visual Studio C++
+*.vcxproj*
+*.sln
+Debug/
+Release/
+
+# ----------------------
+# VS CODE
+# ----------------------
+.vscode/
+.history/
+.settings/
+*.code-workspace
+
+# ----------------------
+# Logs + Temp Files
+# ----------------------
+*.log
+*.tmp
+*.temp
+
+# ----------------------
+# OS / Windows
+# ----------------------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ----------------------
+# Java Swing UI extras
+# ----------------------
+frontend/lib/*
+!frontend/lib/.gitkeep
+
+# Songs (only keep list, not actual mp3s)
+songs/*
+!songs/.gitkeep
+
+# Database exports
+*.sql
+songs_export.txt
