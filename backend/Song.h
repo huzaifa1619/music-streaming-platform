@@ -2,7 +2,6 @@
 #include <string>
 using namespace std;
 
-
 class Song {
 public:
     int id;
