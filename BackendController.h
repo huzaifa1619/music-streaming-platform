@@ -39,7 +39,7 @@ public:
     }
 
     // ================= SYSTEM INIT =================
-    void initializeSystem(const string& userId) {
+    void InitializeSystem(const string& userId) {
         currentUser = userId;
 
         songDB.loadFromCSV("C:\\Users\\PMLS\\Desktop\\Music Streaming Platform\\songs.csv");
