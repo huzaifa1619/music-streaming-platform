@@ -53,22 +53,23 @@ public:
         loadPlaylistSongs();
     }
 
-    void createPlaylist(int playlistId, const string& name) {
-        if (count >= MAX_PLAYLISTS)
-            return;
+   void createPlaylist(int playlistId, const string& name) {
+    if (count >= MAX_PLAYLISTS) return;
 
-        int index = hash(playlistId);
-        while (occupied[index])
-            index = (index + 1) % PLAYLIST_TABLE_SIZE;
+    int index = hash(playlistId);
 
-        playlists[index].playlistId = playlistId;
-        playlists[index].name = name;
-        playlists[index].head = NULL;
-        occupied[index] = true;
-        count++;
-
-        savePlaylists();
+    // Find next empty slot
+    while (occupied[index]) {
+        index = (index + 1) % PLAYLIST_TABLE_SIZE;
     }
+
+    playlists[index] = { playlistId, name, nullptr };
+    occupied[index] = true;
+    count++;
+
+    savePlaylists();
+}
+
 
     void addSongToPlaylist(int playlistId, int songId) {
         int index = hash(playlistId);
