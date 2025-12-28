@@ -1,29 +1,18 @@
-#pragma once
+#ifndef SONG_H
+#define SONG_H
+
 #include <string>
 using namespace std;
 
-class Song {
-public:
-    int id;
+struct Song {
+    int songId;
     string title;
     string artist;
     string genre;
-    int duration;
-    string path;
+    int duration;          // in seconds
+    string filePath;
     string imagePath;
-
-    Song(int i = 0,
-         string t = "",
-         string a = "",
-         string g = "",
-         int d = 0,
-         string p = "")
-    {
-        id = i;
-        title = t;
-        artist = a;
-        genre = g;
-        duration = d;
-        path = p;
-    }
+    string dateAdded;      // YYYY-MM-DD
 };
+
+#endif
