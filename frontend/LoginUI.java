@@ -1,6 +1,5 @@
 import javax.swing.*;
 import java.awt.*;
-import java.sql.*;
 
 public class LoginUI extends JFrame {
 
@@ -72,78 +71,47 @@ public class LoginUI extends JFrame {
         loginBtn.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
         box.add(loginBtn);
 
+        // ================= NEW ARCHITECTURE LOGIN =================
         loginBtn.addActionListener(e -> {
-            Connection conn = null;
-            PreparedStatement pst = null;
-            ResultSet rs = null;
-            
+
+            String user = username.getText().trim();
+
+            if (user.isEmpty()) {
+                JOptionPane.showMessageDialog(
+                    this,
+                    "Username is required",
+                    "Input Required",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                return;
+            }
+
             try {
-                String user = username.getText().trim();
-                String pass = new String(password.getPassword()).trim();
-
-                // Validate input
-                if (user.isEmpty() || pass.isEmpty()) {
-                    JOptionPane.showMessageDialog(this, 
-                        "Please enter both username and password", 
-                        "Input Required", 
-                        JOptionPane.WARNING_MESSAGE);
-                    return;
+                // Start backend if needed
+                if (!BackendBridge.isRunning()) {
+                    BackendBridge.startBackend();
                 }
 
-                conn = DBConnection.getConnection();
-                pst = conn.prepareStatement(
-                    "SELECT userID, fullName FROM Users WHERE username=? AND password=?");
+                // Tell backend which user is active
+                BackendBridge.setUser(user);
 
-                pst.setString(1, user);
-                pst.setString(2, pass);
+                // Open dashboard
+                dispose();
+                SwingUtilities.invokeLater(() ->
+                    new Dashboard(user).setVisible(true)
+                );
 
-                rs = pst.executeQuery();
-
-                if (rs.next()) {
-                    int uid = rs.getInt("userID");
-                    String name = rs.getString("fullName");
-
-                    // Close login page
-                    dispose();
-                    
-                    // Open Dashboard with logged-in user's name
-                    SwingUtilities.invokeLater(() -> {
-                        new Dashboard(name).setVisible(true);
-                    });
-
-                } else {
-                    JOptionPane.showMessageDialog(this, 
-                        "Invalid username or password", 
-                        "Login Failed", 
-                        JOptionPane.ERROR_MESSAGE);
-                }
-
-            } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, 
-                    "Database Error: " + ex.getMessage(), 
-                    "Error", 
-                    JOptionPane.ERROR_MESSAGE);
-                ex.printStackTrace();
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, 
-                    "Error: " + ex.getMessage(), 
-                    "Error", 
-                    JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(
+                    this,
+                    "Backend error: " + ex.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+                );
                 ex.printStackTrace();
-            } finally {
-                // Properly close all database resources
-                try {
-                    if (rs != null) rs.close();
-                    if (pst != null) pst.close();
-                    if (conn != null) conn.close();
-                } catch (SQLException ex) {
-                    ex.printStackTrace();
-                }
             }
         });
 
         setVisible(true);
     }
-
-    
 }
