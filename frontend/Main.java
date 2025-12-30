@@ -2,16 +2,14 @@ import javax.swing.SwingUtilities;
 public class Main {
     public static void main(String[] args) {
         try {
-            SongScanner.runScan();
             BackendBridge.startBackend();
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch(Exception e) {
+            System.out.println("Backend failed: " + e.getMessage());
         }
 
-        SwingUtilities.invokeLater(() -> new Dashboard("").setVisible(true));
-
-        Runtime.getRuntime().addShutdownHook(
-            new Thread(BackendBridge::shutdown)
-        );
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            new LoginUI().setVisible(true);
+        });
     }
 }
+

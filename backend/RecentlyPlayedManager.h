@@ -113,6 +113,17 @@ public:
         }
         file.close();
     }
+
+    // Return a vector of recent song IDs (most recent first)
+    vector<int> getRecents() {
+        vector<int> list;
+        RecentNode* curr = head;
+        while (curr != NULL) {
+            list.push_back(curr->songId);
+            curr = curr->next;
+        }
+        return list;
+    }
 };
 
 #endif

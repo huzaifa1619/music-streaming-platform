@@ -3,9 +3,7 @@ import javax.swing.plaf.basic.BasicScrollBarUI;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
-import java.awt.image.BufferedImage;
 import java.io.File;
-import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,7 +22,9 @@ public class Dashboard extends JFrame {
 
     private JPanel trendingContainer;
     private JPanel quickPicksContainer;
+    private JPanel randomContainer;
     private JPanel historyPanel;
+    private java.util.Set<Integer> recommendedIds = new java.util.HashSet<>();
     private String loggedUser;
     private JTextField search;
     private List<SongDTO> allSongs = new ArrayList<>();
@@ -99,6 +99,12 @@ public class Dashboard extends JFrame {
         mainPanel.add(createSectionLabel("Trending Now"));
         mainPanel.add(Box.createVerticalStrut(15));
         mainPanel.add(createTrendingSection());
+        mainPanel.add(Box.createVerticalStrut(20));
+
+        // Recommended / Random Picks Section
+        mainPanel.add(createSectionLabel("Recommended For You"));
+        mainPanel.add(Box.createVerticalStrut(15));
+        mainPanel.add(createRandomSection());
         mainPanel.add(Box.createVerticalStrut(40));
 
         // Quick Picks Section
@@ -339,6 +345,66 @@ public class Dashboard extends JFrame {
         return card;
     }
 
+    // ==================== RANDOM / RECOMMENDED SECTION ====================
+    private JPanel createRandomSection() {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBackground(BG);
+        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 250));
+        wrapper.setPreferredSize(new Dimension(800, 250));
+
+        randomContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 18, 0));
+        randomContainer.setBackground(BG);
+
+        // Start empty: recommendations are populated when a user plays songs
+
+        int cardWidth = 180;
+        int gap = 18;
+        int totalWidth = (cardWidth + gap) * Math.min(allSongs.size(), 10) + 20;
+        randomContainer.setPreferredSize(new Dimension(totalWidth, 230));
+
+        JScrollPane scrollPane = new JScrollPane(randomContainer);
+        scrollPane.setBorder(null);
+        scrollPane.setBackground(BG);
+        scrollPane.getViewport().setBackground(BG);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(40);
+        customizeScrollBar(scrollPane.getHorizontalScrollBar());
+
+        scrollPane.addMouseWheelListener(e -> {
+            JScrollBar hBar = scrollPane.getHorizontalScrollBar();
+            int delta = e.getUnitsToScroll() * 25;
+            hBar.setValue(hBar.getValue() + delta);
+        });
+
+        wrapper.add(scrollPane, BorderLayout.CENTER);
+        return wrapper;
+    }
+
+    private void loadRandomSongs() {
+        if (randomContainer == null) return;
+        randomContainer.removeAll();
+
+        List<SongDTO> shuffled = new ArrayList<>(allSongs);
+        Collections.shuffle(shuffled);
+
+        int count = 0;
+        for (SongDTO song : shuffled) {
+            if (count >= 10) break;
+            randomContainer.add(createTrendingCard(song));
+            count++;
+        }
+
+        int cardWidth = 180;
+        int gap = 18;
+        int totalWidth = (cardWidth + gap) * count + 40;
+        randomContainer.setPreferredSize(new Dimension(totalWidth, 230));
+
+        randomContainer.revalidate();
+        randomContainer.repaint();
+    }
+
     // ==================== QUICK PICKS SECTION (FIXED) ====================
     private JPanel createQuickPicksSection() {
         JPanel wrapper = new JPanel(new BorderLayout());
@@ -542,10 +608,7 @@ public class Dashboard extends JFrame {
         historyPanel.setBackground(BG);
         historyPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel placeholder = new JLabel("Play some songs to see your history here");
-        placeholder.setForeground(SUBTEXT);
-        placeholder.setFont(new Font("Segoe UI", Font.ITALIC, 14));
-        historyPanel.add(placeholder);
+        loadHistory();
 
         return historyPanel;
     }
@@ -563,7 +626,7 @@ public class Dashboard extends JFrame {
         appName.setBounds(24, 20, 220, 40);
         sidebar.add(appName);
 
-        String[] menuItems = {"Home", "Your Library", "Playlists", "Favorites", "Settings"};
+        String[] menuItems = {"Home", "Playlists", "Favorites"};
         int y = 90;
 
         for (String item : menuItems) {
@@ -594,6 +657,7 @@ public class Dashboard extends JFrame {
             btn.addActionListener(e -> {
                 loadAllSongs();
                 loadTrendingSongs();
+                loadRandomSongs();
                 loadQuickPicks();
             });
         }
@@ -649,6 +713,10 @@ public class Dashboard extends JFrame {
                 String query = search.getText().trim();
                 if (query.isEmpty() || query.contains("Search songs")) {
                     loadTrendingSongs();
+                    // Only show random filler when not logged in; recommendations start empty for logged users
+                    if (loggedUser == null || loggedUser.isEmpty()) {
+                        loadRandomSongs();
+                    }
                 } else {
                     performSearch(query);
                 }
@@ -891,6 +959,19 @@ public class Dashboard extends JFrame {
         if (index == -1) index = 0;
         MusicPlayerUI.setQueue(allSongs, index);
 
+        // Notify backend about play (updates recently played)
+        try {
+            if (BackendBridge.isRunning()) {
+                BackendBridge.playSong(song.songId);
+            } else {
+                BackendBridge.startBackend();
+                BackendBridge.setUser(loggedUser == null ? "" : loggedUser);
+                BackendBridge.playSong(song.songId);
+            }
+        } catch (Exception ex) {
+            // ignore backend errors for playback
+        }
+
         // Open player
         new MusicPlayerUI(song.songId,
              song.filePath,
@@ -899,6 +980,96 @@ public class Dashboard extends JFrame {
                 song.duration,
                  song.imagePath,
                   null).setVisible(true);
+
+        // Refresh history panel
+        loadHistory();
+
+        // Fetch recommendations for the played song and append a few
+        try {
+            if (!BackendBridge.isRunning()) BackendBridge.startBackend();
+            List<SongDTO> recs = BackendBridge.recommend(song.songId);
+            appendRecommendations(recs, 3);
+        } catch (Exception ex) {
+            // ignore recommendation failures
+        }
+    }
+
+    private void appendRecommendations(List<SongDTO> recs, int maxToAdd) {
+        if (randomContainer == null) return;
+
+        int added = 0;
+
+        // First try backend recommendations
+        if (recs != null) {
+            for (SongDTO s : recs) {
+                if (added >= maxToAdd) break;
+                if (s == null) continue;
+                if (s.songId == -1) continue;
+                if (recommendedIds.contains(s.songId)) continue;
+                recommendedIds.add(s.songId);
+                randomContainer.add(createTrendingCard(s));
+                added++;
+            }
+        }
+
+        // If backend provided fewer than requested, fill with random picks
+        if (added < maxToAdd) {
+            List<SongDTO> candidates = new ArrayList<>();
+            for (SongDTO s : allSongs) {
+                if (s == null) continue;
+                if (s.songId == -1) continue;
+                if (recommendedIds.contains(s.songId)) continue;
+                candidates.add(s);
+            }
+            Collections.shuffle(candidates);
+            for (SongDTO s : candidates) {
+                if (added >= maxToAdd) break;
+                recommendedIds.add(s.songId);
+                randomContainer.add(createTrendingCard(s));
+                added++;
+            }
+        }
+
+        // Update size and repaint
+        int cardWidth = 180;
+        int gap = 18;
+        int compCount = randomContainer.getComponentCount();
+        int totalWidth = (cardWidth + gap) * Math.max(1, compCount) + 40;
+        randomContainer.setPreferredSize(new Dimension(totalWidth, 230));
+        randomContainer.revalidate();
+        randomContainer.repaint();
+    }
+
+    private void loadHistory() {
+        if (historyPanel == null) return;
+        historyPanel.removeAll();
+
+        List<SongDTO> recents;
+        try {
+            if (!BackendBridge.isRunning()) BackendBridge.startBackend();
+            recents = BackendBridge.getRecent();
+        } catch (Exception e) {
+            recents = List.of();
+        }
+
+        if (recents.isEmpty()) {
+            JLabel placeholder = new JLabel("Play some songs to see your history here");
+            placeholder.setForeground(SUBTEXT);
+            placeholder.setFont(new Font("Segoe UI", Font.ITALIC, 14));
+            historyPanel.add(placeholder);
+            historyPanel.setPreferredSize(new Dimension(800, 80));
+            historyPanel.revalidate();
+            historyPanel.repaint();
+            return;
+        }
+
+        for (SongDTO s : recents) {
+            JPanel card = createQuickPickCard(s);
+            historyPanel.add(card);
+        }
+
+        historyPanel.revalidate();
+        historyPanel.repaint();
     }
 
     private String truncate(String s, int maxLen) {

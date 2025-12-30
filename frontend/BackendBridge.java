@@ -13,7 +13,7 @@ public class BackendBridge {
         if (backend != null && backend.isAlive()) return;
 
         try {
-            backend = new ProcessBuilder("backend.exe")
+            backend = new ProcessBuilder("C:/Users/PMLS/Desktop/Music Streaming Platform/backend.exe")
                     .redirectErrorStream(true)
                     .start();
 
@@ -45,10 +45,32 @@ public class BackendBridge {
     }
 
     public static void setUser(String user) {
-    if (!isRunning()) {
-        startBackend();
+    if (!isRunning()) startBackend();
+    String result = send("SET_USER " + user);
+    System.out.println("SET_USER -> " + result);
+}
+
+    public static boolean signupFull(String fullname, String user, String pass){
+    if(!isRunning()) startBackend();
+    String result = send("SIGNUP " + user + " " + pass + " " + fullname.replace(" ","_"));
+    return result.equals("OK");
+}
+
+
+    public static boolean signup(String username, String password) {
+        if (!isRunning()) {
+            startBackend();
+        }
+        String result = send("SIGNUP " + username + " " + password);
+        return "OK".equals(result);
     }
-    send("SET_USER " + user);
+
+    public static boolean login(String username, String password) {
+        if (!isRunning()) {
+            startBackend();
+        }
+        String result = send("LOGIN " + username + " " + password);
+        return "OK".equals(result);
     }
 
 
@@ -136,6 +158,14 @@ public class BackendBridge {
         return parseSongs(sendMulti("PL_GET " + playlistId));
     }
 
+    public static boolean removeFromPlaylist(int playlistId, int songId) {
+        return send("PL_REMOVE " + playlistId + " " + songId).equals("OK");
+    }
+
+    public static List<String> getPlaylists() {
+        return sendMulti("PL_LIST");
+    }
+
 
     // ==================== RECOMMENDATION ====================
 
@@ -155,6 +185,11 @@ public class BackendBridge {
 
     return result;
 }
+
+    // ==================== RECENTLY PLAYED ====================
+    public static List<SongDTO> getRecent() {
+        return parseSongs(sendMulti("GET_RECENT"));
+    }
 
 
     // ==================== PARSING ====================

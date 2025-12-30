@@ -7,7 +7,7 @@
 *.ear
 hs_err_pid*
 replay_pid*
-
+frontend/*.csv
 # Maven / Gradle cache
 .mvn/
 target/

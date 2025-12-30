@@ -5,6 +5,8 @@
 #include <iostream>
 #include <string>
 #include "Song.h"
+#include <vector>
+#include <utility>
 
 using namespace std;
 
@@ -53,23 +55,22 @@ public:
         loadPlaylistSongs();
     }
 
-   void createPlaylist(int playlistId, const string& name) {
-    if (count >= MAX_PLAYLISTS) return;
+    void createPlaylist(int playlistId, const string& name) {
+        if (count >= MAX_PLAYLISTS)
+            return;
 
-    int index = hash(playlistId);
+        int index = hash(playlistId);
+        while (occupied[index])
+            index = (index + 1) % PLAYLIST_TABLE_SIZE;
 
-    // Find next empty slot
-    while (occupied[index]) {
-        index = (index + 1) % PLAYLIST_TABLE_SIZE;
+        playlists[index].playlistId = playlistId;
+        playlists[index].name = name;
+        playlists[index].head = NULL;
+        occupied[index] = true;
+        count++;
+
+        savePlaylists();
     }
-
-    playlists[index] = { playlistId, name, nullptr };
-    occupied[index] = true;
-    count++;
-
-    savePlaylists();
-}
-
 
     void addSongToPlaylist(int playlistId, int songId) {
         int index = hash(playlistId);
@@ -141,6 +142,66 @@ public:
             }
         }
         file.close();
+    }
+
+    // Remove a song from a playlist (first occurrence)
+    void removeSongFromPlaylist(int playlistId, int songId) {
+        int index = hash(playlistId);
+        int start = index;
+        while (occupied[index]) {
+            if (playlists[index].playlistId == playlistId) {
+                PlaylistNode* curr = playlists[index].head;
+                PlaylistNode* prev = NULL;
+                while (curr != NULL) {
+                    if (curr->songId == songId) {
+                        if (prev == NULL) {
+                            playlists[index].head = curr->next;
+                        } else {
+                            prev->next = curr->next;
+                        }
+                        delete curr;
+                        savePlaylistSongs();
+                        return;
+                    }
+                    prev = curr;
+                    curr = curr->next;
+                }
+                return;
+            }
+            index = (index + 1) % PLAYLIST_TABLE_SIZE;
+            if (index == start) break;
+        }
+    }
+
+    // Return list of (playlistId, name)
+    std::vector<std::pair<int,std::string>> listPlaylists() {
+        std::vector<std::pair<int,std::string>> out;
+        for (int i = 0; i < PLAYLIST_TABLE_SIZE; i++) {
+            if (occupied[i]) {
+                out.push_back(std::make_pair(playlists[i].playlistId, playlists[i].name));
+            }
+        }
+        return out;
+    }
+
+    // Return song ids for a given playlist (most-recent-first as stored)
+    std::vector<int> getSongsForPlaylist(int playlistId) {
+        std::vector<int> out;
+        int index = hash(playlistId);
+        int start = index;
+        while (occupied[index]) {
+            if (playlists[index].playlistId == playlistId) {
+                PlaylistNode* cur = playlists[index].head;
+                while (cur != NULL) {
+                    out.push_back(cur->songId);
+                    cur = cur->next;
+                }
+                break;
+            }
+            index = (index + 1) % PLAYLIST_TABLE_SIZE;
+            if (index == start) break;
+        }
+        return out;
     }
 };
 

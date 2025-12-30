@@ -3,6 +3,8 @@
 
 #include <string>
 #include <iostream>
+#include <vector>
+#include <utility>
 
 #include "SongDatabase.h"
 #include "SongSearchBST.h"
@@ -10,6 +12,7 @@
 #include "RecentlyPlayedManager.h"
 #include "PlaylistManager.h"
 #include "RecommendationEngine.h"
+#include "UserAuthManager.h"
 
 using namespace std;
 
@@ -28,6 +31,7 @@ private:
     FavoritesManager* favorites;
     RecentlyPlayedManager* recents;
     PlaylistManager* playlists;
+    UserAuthManager* authManager;
 
     string currentUser;
 
@@ -36,6 +40,17 @@ public:
         favorites = nullptr;
         recents = nullptr;
         playlists = nullptr;
+        authManager = new UserAuthManager();
+    }
+
+    // ================= USER AUTH =================
+    bool signUp(const string& username, const string& password, const string& fullname) {
+    return authManager->signUp(username, password, fullname);
+}
+
+
+    bool login(const string& username, const string& password) {
+        return authManager->login(username, password);
     }
 
     // ================= SYSTEM INIT =================
@@ -108,9 +123,43 @@ public:
         playlists->addSongToPlaylist(playlistId, songId);
     }
 
+    void removeSongFromPlaylist(int playlistId, int songId) {
+        playlists->removeSongFromPlaylist(playlistId, songId);
+    }
+
+    // Return list of playlists (id,name)
+    vector<pair<int,string>> getPlaylists() {
+        if (!playlists) return vector<pair<int,string>>();
+        return playlists->listPlaylists();
+    }
+
+    // Return song ids for a given playlist
+    vector<int> getPlaylistSongIds(int playlistId) {
+        if (!playlists) return vector<int>();
+        return playlists->getSongsForPlaylist(playlistId);
+    }
+
     // ================= RECOMMEND =================
-    void recommendFromSong(int songId) {
-        recommender.recommendSongs(songId);
+    // Return list of recommended song IDs
+    vector<int> recommendFromSong(int songId) {
+        return recommender.getRecommendations(songId);
+    }
+
+    // Fetch Song by ID (returns Song with songId=-1 if not found)
+    Song getSongById(int songId) {
+        Song s;
+        s.songId = -1;
+        for (int i = 0; i < songDB.getSongCount(); i++) {
+            Song cand = songDB.getSongAt(i);
+            if (cand.songId == songId) return cand;
+        }
+        return s;
+    }
+
+    // Return recent song IDs for current user (most recent first)
+    vector<int> getRecentSongIds() {
+        if (!recents) return vector<int>();
+        return recents->getRecents();
     }
 };
 

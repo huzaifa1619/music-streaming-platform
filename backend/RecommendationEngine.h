@@ -2,6 +2,7 @@
 #define RECOMMENDATIONENGINE_H
 
 #include <iostream>
+#include <vector>
 using namespace std;
 
 #define MAX_GRAPH_SONGS 1000
@@ -56,20 +57,19 @@ public:
             graph[i2].neighbors[graph[i2].neighborCount++] = songId1;
     }
 
-    void recommendSongs(int startSongId) {
+    // Return a list of recommended song IDs using BFS from startSongId
+    vector<int> getRecommendations(int startSongId) {
+        vector<int> results;
         bool visited[MAX_GRAPH_SONGS] = {false};
         int queue[MAX_GRAPH_SONGS];
         int front = 0, rear = 0;
 
         int startIndex = findNodeIndex(startSongId);
         if (startIndex == -1)
-            return;
+            return results;
 
         visited[startIndex] = true;
         queue[rear++] = startIndex;
-
-        cout << "Recommended songs based on song ID "
-             << startSongId << ":" << endl;
 
         while (front < rear) {
             int current = queue[front++];
@@ -80,11 +80,13 @@ public:
 
                 if (neighborIndex != -1 && !visited[neighborIndex]) {
                     visited[neighborIndex] = true;
-                    cout << "- Song ID: " << neighborSongId << endl;
+                    results.push_back(neighborSongId);
                     queue[rear++] = neighborIndex;
                 }
             }
         }
+
+        return results;
     }
 };
 

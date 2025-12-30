@@ -67,30 +67,32 @@ public class SignupUI extends JFrame {
         signup.setFocusPainted(false);
         add(signup);
 
-        signup.addActionListener(e -> {
-            String name = fullname.getText().trim();
-            String user = username.getText().trim();
-            String pass = new String(password.getPassword()).trim();
+   signup.addActionListener(e -> {
 
-            if (name.isEmpty() || user.isEmpty() || pass.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "All fields required");
-                return;
+    String full = fullname.getText().trim();      // or any other name
+    String user     = username.getText().trim();
+    String pass     = new String(password.getPassword()).trim();
+
+    if(full.isEmpty() || user.isEmpty() || pass.isEmpty()) {
+        JOptionPane.showMessageDialog(this,"All fields required");
+        return;
+    }
+
+    new Thread(() -> {                 // prevent GUI freeze
+        boolean ok = BackendBridge.signupFull(full, user, pass);
+
+        SwingUtilities.invokeLater(() -> {
+            if(ok){
+                JOptionPane.showMessageDialog(this,"Account Created Successfully");
+                dispose();
+                new LoginUI().setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(this,"Username already exists");
             }
-
-            // Backend handles user context + CSV creation
-            if (!BackendBridge.isRunning()) {
-                BackendBridge.startBackend();
-            }
-            BackendBridge.setUser(user);
-
-            JOptionPane.showMessageDialog(this, "Account created");
-
-            dispose();
-            SwingUtilities.invokeLater(() ->
-                new Dashboard(name).setVisible(true)
-            );
         });
+    }).start();
+});
 
-        setVisible(true);
+    setVisible(true);
     }
 }

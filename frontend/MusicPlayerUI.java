@@ -1,5 +1,4 @@
 import javax.swing.*;
-import javax.swing.plaf.basic.BasicScrollBarUI;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
@@ -43,6 +42,9 @@ public class MusicPlayerUI extends JFrame {
     private JLabel volumeIcon;
     private Timer progressTimer;
     private int elapsedSeconds = 0;
+
+    // Background loader for audio to avoid blocking EDT
+    private SwingWorker<Void, Void> loaderWorker;
 
     // Images
     private BufferedImage originalImage = null;
@@ -697,60 +699,101 @@ public class MusicPlayerUI extends JFrame {
     // ==================== PLAYBACK ====================
 
     private void startPlayback() {
+        // Ensure previous playback/loader is stopped
         stopPlayback();
 
-        try {
-            AudioInputStream audioStream = AudioSystem.getAudioInputStream(currentFile);
-            AudioFormat baseFormat = audioStream.getFormat();
+        // Use a background worker to avoid blocking the EDT while decoding/loading audio
+        loaderWorker = new SwingWorker<>() {
+            private Exception workerEx = null;
+            private Clip loadedClip = null;
+            private FloatControl loadedVolume = null;
 
-            AudioFormat decodedFormat = new AudioFormat(
-                AudioFormat.Encoding.PCM_SIGNED,
-                baseFormat.getSampleRate(),
-                16,
-                baseFormat.getChannels(),
-                baseFormat.getChannels() * 2,
-                baseFormat.getSampleRate(),
-                false
-            );
+            @Override
+            protected Void doInBackground() {
+                try (AudioInputStream audioStream = AudioSystem.getAudioInputStream(currentFile)) {
+                    AudioFormat baseFormat = audioStream.getFormat();
 
-            AudioInputStream decodedStream = AudioSystem.getAudioInputStream(decodedFormat, audioStream);
+                    AudioFormat decodedFormat = new AudioFormat(
+                        AudioFormat.Encoding.PCM_SIGNED,
+                        baseFormat.getSampleRate(),
+                        16,
+                        baseFormat.getChannels(),
+                        baseFormat.getChannels() * 2,
+                        baseFormat.getSampleRate(),
+                        false
+                    );
 
-            audioClip = AudioSystem.getClip();
-            audioClip.open(decodedStream);
+                    try (AudioInputStream decodedStream = AudioSystem.getAudioInputStream(decodedFormat, audioStream)) {
+                        Clip clip = AudioSystem.getClip();
+                        clip.open(decodedStream);
 
-            if (audioClip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-                volumeControl = (FloatControl) audioClip.getControl(FloatControl.Type.MASTER_GAIN);
-                applyVolume();
-            }
+                        if (clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+                            loadedVolume = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+                        }
 
-            audioClip.addLineListener(event -> {
-                if (event.getType() == LineEvent.Type.STOP && playing && !isPaused) {
-                    if (audioClip.getFramePosition() >= audioClip.getFrameLength()) {
-                        SwingUtilities.invokeLater(this::onSongEnded);
+                        loadedClip = clip;
                     }
+                } catch (UnsupportedAudioFileException e) {
+                    workerEx = e;
+                } catch (Exception e) {
+                    workerEx = e;
                 }
-            });
-
-            audioClip.start();
-            playing = true;
-            isPaused = false;
-
-            if (durationSeconds <= 0) {
-                durationSeconds = (int) (audioClip.getMicrosecondLength() / 1_000_000);
-                remainingLabel.setText("-" + formatTime(durationSeconds));
+                return null;
             }
 
-            playPauseBtn.repaint();
-            startProgressTimer();
+            @Override
+            protected void done() {
+                loaderWorker = null;
+                if (workerEx != null) {
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(MusicPlayerUI.this,
+                            "Failed to play: " + workerEx.getMessage(),
+                            "Playback Error", JOptionPane.ERROR_MESSAGE);
+                    });
+                    if (loadedClip != null) {
+                        try { loadedClip.close(); } catch (Exception ignored) {}
+                    }
+                    return;
+                }
 
-        } catch (UnsupportedAudioFileException e) {
-            JOptionPane.showMessageDialog(this,
-                "Unsupported audio format. Please use WAV files.\nMP3 requires additional libraries.",
-                "Format Error", JOptionPane.ERROR_MESSAGE);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Failed to play: " + ex.getMessage());
-        }
+                // Assign loaded clip to audioClip field and start
+                audioClip = loadedClip;
+                volumeControl = loadedVolume;
+
+                if (audioClip == null) return;
+
+                // Add line listener that checks for natural end
+                Clip localClip = audioClip;
+                audioClip.addLineListener(event -> {
+                    if (event.getType() == LineEvent.Type.STOP && playing && !isPaused) {
+                        if (localClip.getFramePosition() >= localClip.getFrameLength()) {
+                            SwingUtilities.invokeLater(MusicPlayerUI.this::onSongEnded);
+                        }
+                    }
+                });
+
+                // Apply volume and start
+                if (volumeControl != null) applyVolume();
+
+                try {
+                    audioClip.start();
+                    playing = true;
+                    isPaused = false;
+
+                    if (durationSeconds <= 0) {
+                        durationSeconds = (int) (audioClip.getMicrosecondLength() / 1_000_000);
+                        remainingLabel.setText("-" + formatTime(durationSeconds));
+                    }
+
+                    playPauseBtn.repaint();
+                    startProgressTimer();
+                } catch (Exception e) {
+                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(MusicPlayerUI.this, "Failed to start playback: " + e.getMessage()));
+                }
+            }
+        };
+
+        loaderWorker.execute();
     }
 
     private void togglePlayPause() {
@@ -795,9 +838,19 @@ public class MusicPlayerUI extends JFrame {
         isPaused = false;
         stopProgressTimer();
 
+        // Cancel any pending loader
+        if (loaderWorker != null && !loaderWorker.isDone()) {
+            loaderWorker.cancel(true);
+            loaderWorker = null;
+        }
+
         if (audioClip != null) {
-            audioClip.stop();
-            audioClip.close();
+            try {
+                audioClip.stop();
+            } catch (Exception ignored) {}
+            try {
+                audioClip.close();
+            } catch (Exception ignored) {}
             audioClip = null;
         }
         volumeControl = null;

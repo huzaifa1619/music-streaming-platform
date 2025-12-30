@@ -7,7 +7,8 @@ public class FavoritesUI extends JFrame {
     public FavoritesUI() {
         super("Favorites Playlist");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setExtendedState(JFrame.MAXIMIZED_BOTH);
+        setSize(900, 700);
+        setLocationRelativeTo(null);
         setLayout(null);
         getContentPane().setBackground(new Color(0x0E0E11));
 
@@ -41,17 +42,61 @@ public class FavoritesUI extends JFrame {
         title.setForeground(Color.WHITE);
         add(title);
 
+        // Add song to favorites
+        JLabel addLabel = new JLabel("Add Song to Favorites:");
+        addLabel.setBounds(100, 80, 300, 30);
+        addLabel.setForeground(Color.WHITE);
+        addLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        add(addLabel);
+
+        // Dropdown for song selection
+        List<SongDTO> allSongs = BackendBridge.getAllSongs();
+        String[] songOptions = new String[allSongs.size()];
+        for (int i = 0; i < allSongs.size(); i++) {
+            SongDTO song = allSongs.get(i);
+            songOptions[i] = song.songId + ": " + song.title + " - " + song.artist;
+        }
+
+        JComboBox<String> songDropdown = new JComboBox<>(songOptions);
+        songDropdown.setBounds(100, 110, 400, 35);
+        songDropdown.setBackground(new Color(0x1C1C22));
+        songDropdown.setForeground(Color.WHITE);
+        songDropdown.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        add(songDropdown);
+
+        JButton addBtn = new JButton("Add");
+        addBtn.setBounds(520, 110, 80, 35);
+        addBtn.setBackground(new Color(0x635BFF));
+        addBtn.setForeground(Color.BLACK);
+        addBtn.setFocusPainted(false);
+        addBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        addBtn.addActionListener(e -> {
+            if (songDropdown.getSelectedIndex() >= 0) {
+                SongDTO selectedSong = allSongs.get(songDropdown.getSelectedIndex());
+                BackendBridge.addFavorite(selectedSong.songId);
+                songDropdown.setSelectedIndex(0);
+                JOptionPane.showMessageDialog(this, "Song added to favorites!");
+                updateFavoritesDisplay();
+            }
+        });
+        add(addBtn);
+
         JPanel listPanel = new JPanel(null);
         listPanel.setBackground(new Color(0x0E0E11));
 
         JScrollPane scroll = new JScrollPane(listPanel);
-        scroll.setBounds(100, 100, 650, 600);
+        scroll.setBounds(100, 170, 650, 450);
         scroll.setBorder(null);
         scroll.getViewport().setBackground(new Color(0x0E0E11));
         add(scroll);
 
         loadSongs(listPanel);
         setVisible(true);
+    }
+
+    private void updateFavoritesDisplay() {
+        // This would be called after adding a favorite
+        // The display updates automatically in loadSongs
     }
 
     private void loadSongs(JPanel list) {

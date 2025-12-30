@@ -71,46 +71,40 @@ public class LoginUI extends JFrame {
         loginBtn.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
         box.add(loginBtn);
 
+        // SIGNUP BUTTON
+        JButton signupBtn = new JButton("Create an account");
+        signupBtn.setBounds(50, 340, 400, 45);
+        signupBtn.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+        signupBtn.setBackground(new Color(0x242428));
+        signupBtn.setForeground(Color.WHITE);
+        signupBtn.setFocusPainted(false);
+        signupBtn.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
+        box.add(signupBtn);
+
+        // Action to open Signup Page
+        signupBtn.addActionListener(e -> {
+            dispose();                 // close login screen
+            new SignupUI().setVisible(true); // open signup window
+        });
+
         // ================= NEW ARCHITECTURE LOGIN =================
-        loginBtn.addActionListener(e -> {
+   loginBtn.addActionListener(e -> {
+    new Thread(() -> {
+        boolean ok = BackendBridge.login(username.getText(), new String(password.getPassword()));
 
-            String user = username.getText().trim();
-
-            if (user.isEmpty()) {
-                JOptionPane.showMessageDialog(
-                    this,
-                    "Username is required",
-                    "Input Required",
-                    JOptionPane.WARNING_MESSAGE
-                );
-                return;
-            }
-
-            try {
-                // Start backend if needed
-                if (!BackendBridge.isRunning()) {
-                    BackendBridge.startBackend();
-                }
-
-                // Tell backend which user is active
-                BackendBridge.setUser(user);
-
-                // Open dashboard
+        SwingUtilities.invokeLater(() -> {
+            if(ok){
+                BackendBridge.setUser(username.getText());
+                new Dashboard(username.getText()).setVisible(true);
                 dispose();
-                SwingUtilities.invokeLater(() ->
-                    new Dashboard(user).setVisible(true)
-                );
-
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(
-                    this,
-                    "Backend error: " + ex.getMessage(),
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE
-                );
-                ex.printStackTrace();
+            } else {
+                JOptionPane.showMessageDialog(null,"Invalid Credentials");
             }
         });
+    }).start();
+});
+
+
 
         setVisible(true);
     }
